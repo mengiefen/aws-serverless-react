@@ -1,0 +1,30 @@
+service: mysmsProject
+outputs:
+  topic:
+    name: serverless-sms
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  profile: serverless
+  region: us-east-1
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - sns:SetSMSAttributes
+        - sns:Publish
+      Resource: '*'
+plugins:
+  - serverless-webpack
+
+package:
+  individually: true
+
+functions:
+  sendSMS:
+    handler: lambdas/endpoints/sendSMS.handler
+    events:
+      - http:
+          path: 'send-sms'
+          method: POST
+          cors: true
