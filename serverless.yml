@@ -8,23 +8,76 @@ provider:
   runtime: nodejs12.x
   profile: serverless
   region: us-east-1
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - sns:SetSMSAttributes
-        - sns:Publish
-      Resource: '*'
+
 plugins:
-  - serverless-webpack
+  # - serverless-webpack
+  - serverless-s3-sync
 
-package:
-  individually: true
+# package:
+#   individually: true
 
-functions:
-  sendSMS:
-    handler: lambdas/endpoints/sendSMS.handler
-    events:
-      - http:
-          path: 'send-sms'
-          method: POST
-          cors: true
+custom:
+  bucketName: 'serverless-react-app-13401979'
+  s3Sync:
+    - bucketName: ${self:custom.bucketName}
+      localDir: client/build/
+
+resources:
+  Resources:
+    ReactAppBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+        AccessControl: PublicRead
+        WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: index.html
+    S3AccessPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: ReactAppBucket
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:GetObject
+              Resource: arn:aws:s3:::${self:custom.bucketName}/*
+
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Origins:
+            - DomainName: ${self:custom.bucketName}.s3.amazonaws.com
+              Id: ReactApp
+              CustomOriginConfig:
+                HTTPPort: 80
+                HTTPSPort: 443
+                OriginProtocolPolicy: https-only
+          Enabled: true
+          DefaultRootObject: index.html
+          CustomErrorResponses:
+            - ResponseCode: 200
+              ErrorCode: 404
+              ResponsePagePath: /index.html
+
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - DELETE
+              - GET
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+              - HEAD
+            TargetOriginId: ReactApp
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            ViewerProtocolPolicy: redirect-to-https
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
